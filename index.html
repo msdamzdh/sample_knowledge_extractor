@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM Knowledge Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f3f4f6;
+      }
+      .container {
+        max-width: 900px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div
+      class="container mx-auto bg-white p-8 rounded-xl shadow-lg border border-gray-200"
+    >
+      <h1 class="text-4xl font-bold text-center text-gray-800 mb-2">
+        LLM Knowledge Extractor
+      </h1>
+      <p class="text-center text-gray-500 mb-8">
+        Analyze text and extract structured knowledge using a mock LLM.
+      </p>
+
+      <!-- Input & Analyze Section -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Analyze Text</h2>
+        <textarea
+          id="text-input"
+          rows="8"
+          class="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow mb-4"
+          placeholder="Enter an article, blog post, or any unstructured text here..."
+        ></textarea>
+        <button
+          id="analyze-button"
+          class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Analyze Text
+        </button>
+        <div
+          id="status-message"
+          class="mt-4 p-3 rounded-lg text-sm hidden"
+        ></div>
+      </div>
+
+      <!-- Search & View Section -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4">Past Analyses</h2>
+        <div class="flex items-center space-x-2 mb-4">
+          <input
+            type="text"
+            id="search-input"
+            class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-shadow"
+            placeholder="Search by topic..."
+          />
+          <button
+            id="search-button"
+            class="bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          >
+            Search
+          </button>
+        </div>
+        <div id="results-container" class="space-y-6">
+          <!-- Analysis results will be displayed here -->
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const analyzeButton = document.getElementById("analyze-button");
+        const searchButton = document.getElementById("search-button");
+        const textInput = document.getElementById("text-input");
+        const searchInput = document.getElementById("search-input");
+        const statusMessage = document.getElementById("status-message");
+        const resultsContainer = document.getElementById("results-container");
+        const apiBaseUrl = "http://127.0.0.1:8000"; // Change if your FastAPI server runs on a different port
+
+        const displayMessage = (message, type = "info") => {
+          statusMessage.textContent = message;
+          statusMessage.classList.remove(
+            "hidden",
+            "bg-red-100",
+            "text-red-700",
+            "bg-green-100",
+            "text-green-700",
+            "bg-blue-100",
+            "text-blue-700"
+          );
+          if (type === "error") {
+            statusMessage.classList.add("bg-red-100", "text-red-700");
+          } else if (type === "success") {
+            statusMessage.classList.add("bg-green-100", "text-green-700");
+          } else {
+            statusMessage.classList.add("bg-blue-100", "text-blue-700");
+          }
+          statusMessage.classList.remove("hidden");
+        };
+
+        const renderResults = (analyses) => {
+          resultsContainer.innerHTML = "";
+          if (analyses.length === 0) {
+            resultsContainer.innerHTML =
+              '<p class="text-center text-gray-500">No analyses found.</p>';
+            return;
+          }
+
+          analyses.forEach((analysis) => {
+            const metadata = analysis.metadata;
+            const card = document.createElement("div");
+            card.className =
+              "bg-gray-50 p-6 rounded-lg border border-gray-200 shadow-sm";
+            card.innerHTML = `
+                        <h3 class="text-xl font-bold text-gray-800">${
+                          metadata.title || "Untitled Document"
+                        }</h3>
+                        <div class="text-sm text-gray-500 mb-4">ID: ${
+                          analysis.id
+                        }</div>
+                        <div class="mb-4">
+                            <span class="font-semibold text-gray-700">Summary:</span>
+                            <p class="text-gray-600 mt-1">${
+                              analysis.summary
+                            }</p>
+                        </div>
+                        <div class="space-y-2">
+                            <div>
+                                <span class="font-semibold text-gray-700">Topics:</span>
+                                <span class="text-gray-600">${metadata.topics.join(
+                                  ", "
+                                )}</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold text-gray-700">Keywords:</span>
+                                <span class="text-gray-600">${metadata.keywords.join(
+                                  ", "
+                                )}</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold text-gray-700">Sentiment:</span>
+                                <span class="font-bold uppercase ${
+                                  metadata.sentiment === "positive"
+                                    ? "text-green-600"
+                                    : metadata.sentiment === "negative"
+                                    ? "text-red-600"
+                                    : "text-gray-500"
+                                }">${metadata.sentiment}</span>
+                            </div>
+                        </div>
+                    `;
+            resultsContainer.appendChild(card);
+          });
+        };
+
+        const fetchAllAnalyses = async () => {
+          try {
+            const response = await fetch(`${apiBaseUrl}/search`);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail);
+            renderResults(data.results);
+          } catch (error) {
+            displayMessage(
+              `Failed to fetch analyses: ${error.message}`,
+              "error"
+            );
+          }
+        };
+
+        analyzeButton.addEventListener("click", async () => {
+          const text = textInput.value;
+          displayMessage("Analyzing...", "info");
+
+          try {
+            const response = await fetch(`${apiBaseUrl}/analyze`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ text }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.detail || "An unknown error occurred.");
+            }
+
+            displayMessage("Analysis successful!", "success");
+            textInput.value = ""; // Clear input after successful analysis
+            fetchAllAnalyses(); // Refresh the list of all analyses
+          } catch (error) {
+            displayMessage(`Error: ${error.message}`, "error");
+          }
+        });
+
+        searchButton.addEventListener("click", async () => {
+          const query = searchInput.value;
+          displayMessage("Searching...", "info");
+
+          try {
+            const response = await fetch(
+              `${apiBaseUrl}/search?topic=${encodeURIComponent(query)}`
+            );
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.detail);
+
+            if (query) {
+              displayMessage(
+                `Found ${data.results.length} result(s).`,
+                "success"
+              );
+            } else {
+              displayMessage(`Displaying all analyses.`, "info");
+            }
+            renderResults(data.results);
+          } catch (error) {
+            displayMessage(`Search failed: ${error.message}`, "error");
+          }
+        });
+
+        // Initial fetch to populate the list on page load
+        fetchAllAnalyses();
+      });
+    </script>
+  </body>
+</html>
