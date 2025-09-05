@@ -17,6 +17,10 @@
       .container {
         max-width: 900px;
       }
+      /* Custom styles for the select background */
+      #llm-provider {
+        background-image: linear-gradient(to right, #f8fafc, #e2e8f0);
+      }
     </style>
   </head>
   <body class="bg-gray-100 p-8">
@@ -27,12 +31,43 @@
         LLM Knowledge Extractor
       </h1>
       <p class="text-center text-gray-500 mb-8">
-        Analyze text and extract structured knowledge using a mock LLM.
+        Analyze text and extract structured knowledge using an LLM.
       </p>
 
       <!-- Input & Analyze Section -->
       <div class="mb-8">
         <h2 class="text-2xl font-semibold text-gray-700 mb-4">Analyze Text</h2>
+
+        <!-- LLM Selection Controls -->
+        <div class="flex flex-col space-y-4 mb-4">
+          <div>
+            <label
+              for="llm-provider"
+              class="block text-sm font-medium text-gray-700"
+              >Choose LLM Provider</label
+            >
+            <select
+              id="llm-provider"
+              class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+            >
+              <option value="mock" selected>Mock LLM</option>
+              <option value="gpt">GPT (OpenAI)</option>
+              <option value="ollama">Ollama</option>
+            </select>
+          </div>
+          <div id="api-key-container" class="hidden">
+            <label for="api-key" class="block text-sm font-medium text-gray-700"
+              >OpenAI API Key</label
+            >
+            <input
+              type="password"
+              id="api-key"
+              placeholder="Enter your OpenAI API key"
+              class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
         <textarea
           id="text-input"
           rows="8"
@@ -82,7 +117,18 @@
         const searchInput = document.getElementById("search-input");
         const statusMessage = document.getElementById("status-message");
         const resultsContainer = document.getElementById("results-container");
-        const apiBaseUrl = "http://127.0.0.1:8000"; // Change if your FastAPI server runs on a different port
+        const llmProviderSelect = document.getElementById("llm-provider");
+        const apiKeyContainer = document.getElementById("api-key-container");
+        const apiKeyInput = document.getElementById("api-key");
+
+        // Show/hide API key input based on LLM selection
+        llmProviderSelect.addEventListener("change", (event) => {
+          if (event.target.value === "gpt") {
+            apiKeyContainer.classList.remove("hidden");
+          } else {
+            apiKeyContainer.classList.add("hidden");
+          }
+        });
 
         const displayMessage = (message, type = "info") => {
           statusMessage.textContent = message;
@@ -162,7 +208,7 @@
 
         const fetchAllAnalyses = async () => {
           try {
-            const response = await fetch(`${apiBaseUrl}/search`);
+            const response = await fetch("/search");
             const data = await response.json();
             if (!response.ok) throw new Error(data.detail);
             renderResults(data.results);
@@ -176,15 +222,23 @@
 
         analyzeButton.addEventListener("click", async () => {
           const text = textInput.value;
+          const modelChoice = llmProviderSelect.value;
+          const apiKey = apiKeyInput.value;
           displayMessage("Analyzing...", "info");
 
+          const payload = {
+            text: text,
+            model_choice: modelChoice,
+            api_key: apiKey,
+          };
+
           try {
-            const response = await fetch(`${apiBaseUrl}/analyze`, {
+            const response = await fetch("/analyze", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ text }),
+              body: JSON.stringify(payload),
             });
 
             const data = await response.json();
@@ -194,8 +248,8 @@
             }
 
             displayMessage("Analysis successful!", "success");
-            textInput.value = ""; // Clear input after successful analysis
-            fetchAllAnalyses(); // Refresh the list of all analyses
+            textInput.value = "";
+            fetchAllAnalyses();
           } catch (error) {
             displayMessage(`Error: ${error.message}`, "error");
           }
@@ -207,7 +261,7 @@
 
           try {
             const response = await fetch(
-              `${apiBaseUrl}/search?topic=${encodeURIComponent(query)}`
+              `/search?topic=${encodeURIComponent(query)}`
             );
             const data = await response.json();
 
@@ -227,7 +281,6 @@
           }
         });
 
-        // Initial fetch to populate the list on page load
         fetchAllAnalyses();
       });
     </script>
